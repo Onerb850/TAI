@@ -87,7 +87,7 @@ def exibir_card_turno(titulo, icone, volume, tai, ocupacao, conformidade, cor_te
     """
     st.markdown(html, unsafe_allow_html=True)
 
-# --- FUNÇÃO MATEMÁTICA DE JUSTIÇA OPERACIONAL (PÓDIO DINÂMICO A, B e C) ---
+# --- FUNÇÃO MATEMÁTICA DE JUSTIÇA OPERACIONAL ---
 def calcular_turno_destaque(df_filtrado, mins_a, mins_b, mins_c):
     turnos_data = []
     
@@ -256,11 +256,38 @@ if not df_completo.empty:
     st.subheader(f"📅 Visão Geral do Mês ({mes_selecionado})")
     
     if not df_mes.empty:
-        cm1, cm2, cm3 = st.columns(3)
-        cm1.metric("Carretas Finalizadas no Mês", len(df_mes))
-        tai_medio_mes = df_mes['TAI (Minutos)'].mean()
-        cm2.metric(label="TAI Médio do Mês", value=formatar_tempo(tai_medio_mes).replace('<b>', '').replace('</b>', ''))
-        cm3.metric("Dentro da Meta no Mês", int(df_mes['Dentro_da_Meta'].sum()))
+        
+        # 1. CÁLCULO PRÉVIO DOS MINUTOS DISPONÍVEIS TOTAIS NO MÊS
+        datas_unicas_mes = df_mes['Data_Operacao'].unique()
+        min_disp_mes_a, min_disp_mes_b, min_disp_mes_c = 0, 0, 0
+        
+        for d in datas_unicas_mes:
+            dia_semana = pd.to_datetime(d).dayofweek
+            if dia_semana == 5: 
+                min_disp_mes_a += MINUTOS_TURNO_SABADO_A
+                min_disp_mes_b += MINUTOS_TURNO_SABADO_B
+                min_disp_mes_c += MINUTOS_TURNO_SABADO_C
+            elif dia_semana < 5: 
+                min_disp_mes_a += MINUTOS_TURNO_SEMANA_A
+                min_disp_mes_b += MINUTOS_TURNO_SEMANA_B
+                min_disp_mes_c += MINUTOS_TURNO_SEMANA_C
+                
+        min_disp_total_mes = min_disp_mes_a + min_disp_mes_b + min_disp_mes_c
+        
+        # 2. CÁLCULOS GERAIS DO MÊS
+        vol_mes = len(df_mes)
+        tai_medio_mes = df_mes['TAI (Minutos)'].mean() if vol_mes > 0 else 0
+        dentro_meta_mes = int(df_mes['Dentro_da_Meta'].sum())
+        conf_mes = (dentro_meta_mes / vol_mes) * 100 if vol_mes > 0 else 0
+        ocup_mes = (df_mes['TAI (Minutos)'].sum() / min_disp_total_mes) * 100 if min_disp_total_mes > 0 else 0
+        
+        # 3. EXIBIÇÃO EM 5 COLUNAS (NOVO LAYOUT GERAL)
+        cm1, cm2, cm3, cm4, cm5 = st.columns(5)
+        cm1.metric("Volume Total", vol_mes)
+        cm2.metric("TAI Médio", formatar_tempo(tai_medio_mes).replace('<b>', '').replace('</b>', ''))
+        cm3.metric("Dentro da Meta (Qtd)", dentro_meta_mes)
+        cm4.metric("Conformidade (%)", f"{conf_mes:.1f}%")
+        cm5.metric("Ocupação Geral (%)", f"{ocup_mes:.1f}%")
         
         st.write("") 
         
@@ -283,24 +310,9 @@ if not df_completo.empty:
         # 🏆 PRODUTIVIDADE POR TURNO (MENSAL)
         st.markdown("---")
         st.subheader("🏆 Produtividade por Turno no Mês (A, B e C)")
-        
-        datas_unicas_mes = df_mes['Data_Operacao'].unique()
-        min_disp_mes_a, min_disp_mes_b, min_disp_mes_c = 0, 0, 0
-        
-        for d in datas_unicas_mes:
-            dia_semana = pd.to_datetime(d).dayofweek
-            if dia_semana == 5: 
-                min_disp_mes_a += MINUTOS_TURNO_SABADO_A
-                min_disp_mes_b += MINUTOS_TURNO_SABADO_B
-                min_disp_mes_c += MINUTOS_TURNO_SABADO_C
-            elif dia_semana < 5: 
-                min_disp_mes_a += MINUTOS_TURNO_SEMANA_A
-                min_disp_mes_b += MINUTOS_TURNO_SEMANA_B
-                min_disp_mes_c += MINUTOS_TURNO_SEMANA_C
                 
         colA_mes, colB_mes, colC_mes = st.columns(3)
         
-        # Turno A
         df_turno_a_mes = df_mes[df_mes['Turno'] == 'Turno A']
         vol_a_mes = len(df_turno_a_mes)
         tai_a_mes = df_turno_a_mes['TAI (Minutos)'].mean() if vol_a_mes > 0 else 0
@@ -309,7 +321,6 @@ if not df_completo.empty:
         with colA_mes:
             exibir_card_turno("Turno A", "☀️", vol_a_mes, formatar_tempo(tai_a_mes), ocup_a_mes, conf_a_mes, CORES_TURNOS["Turno A"])
             
-        # Turno B
         df_turno_b_mes = df_mes[df_mes['Turno'] == 'Turno B']
         vol_b_mes = len(df_turno_b_mes)
         tai_b_mes = df_turno_b_mes['TAI (Minutos)'].mean() if vol_b_mes > 0 else 0
@@ -318,7 +329,6 @@ if not df_completo.empty:
         with colB_mes:
             exibir_card_turno("Turno B", "🌙", vol_b_mes, formatar_tempo(tai_b_mes), ocup_b_mes, conf_b_mes, CORES_TURNOS["Turno B"])
 
-        # Turno C
         df_turno_c_mes = df_mes[df_mes['Turno'] == 'Turno C']
         vol_c_mes = len(df_turno_c_mes)
         tai_c_mes = df_turno_c_mes['TAI (Minutos)'].mean() if vol_c_mes > 0 else 0
@@ -366,11 +376,27 @@ if not df_completo.empty:
     st.subheader(f"🔍 Detalhamento Diário ({data_selecionada.strftime('%d/%m/%Y')})")
     
     if not df_dia.empty:
-        c1, c2, c3 = st.columns(3)
-        c1.metric("Carretas Finalizadas (Dia)", len(df_dia))
-        tai_medio_dia = df_dia['TAI (Minutos)'].mean()
-        c2.metric(label="TAI Médio do Dia", value=formatar_tempo(tai_medio_dia).replace('<b>', '').replace('</b>', ''))
-        c3.metric("Dentro da Meta (Dia)", int(df_dia['Dentro_da_Meta'].sum()))
+        # CÁLCULOS DO DIA GERAL
+        dia_semana_sel = pd.to_datetime(data_selecionada).dayofweek
+        if dia_semana_sel == 5:
+            min_disp_dia_a, min_disp_dia_b, min_disp_dia_c = MINUTOS_TURNO_SABADO_A, MINUTOS_TURNO_SABADO_B, MINUTOS_TURNO_SABADO_C
+        else:
+            min_disp_dia_a, min_disp_dia_b, min_disp_dia_c = MINUTOS_TURNO_SEMANA_A, MINUTOS_TURNO_SEMANA_B, MINUTOS_TURNO_SEMANA_C
+            
+        min_disp_total_dia = min_disp_dia_a + min_disp_dia_b + min_disp_dia_c
+        vol_dia = len(df_dia)
+        tai_medio_dia = df_dia['TAI (Minutos)'].mean() if vol_dia > 0 else 0
+        dentro_meta_dia = int(df_dia['Dentro_da_Meta'].sum())
+        conf_dia = (dentro_meta_dia / vol_dia) * 100 if vol_dia > 0 else 0
+        ocup_dia = (df_dia['TAI (Minutos)'].sum() / min_disp_total_dia) * 100 if min_disp_total_dia > 0 else 0
+
+        # EXIBIÇÃO EM 5 COLUNAS DIÁRIAS
+        c1, c2, c3, c4, c5 = st.columns(5)
+        c1.metric("Volume do Dia", vol_dia)
+        c2.metric("TAI Médio", formatar_tempo(tai_medio_dia).replace('<b>', '').replace('</b>', ''))
+        c3.metric("Dentro da Meta (Qtd)", dentro_meta_dia)
+        c4.metric("Conformidade (%)", f"{conf_dia:.1f}%")
+        c5.metric("Ocupação do Dia (%)", f"{ocup_dia:.1f}%")
         
         st.write("") 
         
@@ -457,15 +483,8 @@ if not df_completo.empty:
         st.markdown("---")
         st.subheader(f"🏆 Produtividade por Turno no Dia ({data_selecionada.strftime('%d/%m/%Y')})")
         
-        dia_semana_sel = pd.to_datetime(data_selecionada).dayofweek
-        if dia_semana_sel == 5:
-            min_disp_dia_a, min_disp_dia_b, min_disp_dia_c = MINUTOS_TURNO_SABADO_A, MINUTOS_TURNO_SABADO_B, MINUTOS_TURNO_SABADO_C
-        else:
-            min_disp_dia_a, min_disp_dia_b, min_disp_dia_c = MINUTOS_TURNO_SEMANA_A, MINUTOS_TURNO_SEMANA_B, MINUTOS_TURNO_SEMANA_C
-        
         colA, colB, colC = st.columns(3)
         
-        # Turno A
         df_turno_a = df_dia[df_dia['Turno'] == 'Turno A']
         vol_a = len(df_turno_a)
         tai_a = df_turno_a['TAI (Minutos)'].mean() if vol_a > 0 else 0
@@ -474,7 +493,6 @@ if not df_completo.empty:
         with colA:
             exibir_card_turno("Turno A", "☀️", vol_a, formatar_tempo(tai_a), ocup_a, conf_a, CORES_TURNOS["Turno A"])
             
-        # Turno B
         df_turno_b = df_dia[df_dia['Turno'] == 'Turno B']
         vol_b = len(df_turno_b)
         tai_b = df_turno_b['TAI (Minutos)'].mean() if vol_b > 0 else 0
@@ -483,7 +501,6 @@ if not df_completo.empty:
         with colB:
             exibir_card_turno("Turno B", "🌙", vol_b, formatar_tempo(tai_b), ocup_b, conf_b, CORES_TURNOS["Turno B"])
 
-        # Turno C
         df_turno_c = df_dia[df_dia['Turno'] == 'Turno C']
         vol_c = len(df_turno_c)
         tai_c = df_turno_c['TAI (Minutos)'].mean() if vol_c > 0 else 0
