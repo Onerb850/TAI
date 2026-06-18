@@ -13,16 +13,7 @@ META_PUXADA_E_OUTROS = 70
 META_PONTO_APOIO = 30      
 
 # ==============================================================================
-# ⚙️ 2. CONFIGURAÇÃO DE TURNOS (HORÁRIOS DE CORTE)
-# ==============================================================================
-CORTE_TURNO_A_SEMANA = "14:48"  
-CORTE_TURNO_B_SEMANA = "20:48"  
-
-CORTE_TURNO_A_SABADO = "11:00"  
-CORTE_TURNO_B_SABADO = "15:00"  
-
-# ==============================================================================
-# ⚙️ 3. CARGA HORÁRIA LÍQUIDA (BASE PARA TAXA DE OCUPAÇÃO)
+# ⚙️ 2. CARGA HORÁRIA LÍQUIDA (BASE PARA TAXA DE OCUPAÇÃO)
 # ==============================================================================
 MINUTOS_TURNO_SEMANA_A = 468 
 MINUTOS_TURNO_SEMANA_B = 468 
@@ -33,7 +24,7 @@ MINUTOS_TURNO_SABADO_B = 300
 MINUTOS_TURNO_SABADO_C = 240 
 
 # ==============================================================================
-# ⚙️ 4. LIMITE DE OCIOSIDADE (GUILHOTINA DE HIATOS)
+# ⚙️ 3. LIMITE DE OCIOSIDADE (GUILHOTINA DE HIATOS)
 # ==============================================================================
 LIMITE_MAXIMO_HIATO_MINUTOS = 240 
 # ==============================================================================
@@ -43,12 +34,10 @@ ESCALA_CORES_TAI = ["#2E7D32", "#66BB6A", "#F9A825", "#EF6C00", "#C62828"]
 ESCALA_CORES_HIATO = ["#E3F2FD", "#90CAF9", "#42A5F5", "#1E88E5", "#0D47A1"] 
 CORES_TURNOS = {"Turno A": "#42A5F5", "Turno B": "#26A69A", "Turno C": "#7E57C2"}
 
-# --- FUNÇÃO ANTI-DEFORMAÇÃO ---
 def truncar_texto(texto, limite):
     texto = str(texto).strip()
     return texto[:limite] + "..." if len(texto) > limite else texto
 
-# --- FUNÇÃO VISUAL: CARTÕES DE TURNO COM 4 MÉTRICAS ---
 def exibir_card_turno(titulo, icone, volume, tai, ocupacao, conformidade, cor_tema):
     html = f"""
     <div style="
@@ -87,7 +76,6 @@ def exibir_card_turno(titulo, icone, volume, tai, ocupacao, conformidade, cor_te
     """
     st.markdown(html, unsafe_allow_html=True)
 
-# --- FUNÇÃO MATEMÁTICA DE JUSTIÇA OPERACIONAL ---
 def calcular_turno_destaque(df_filtrado, mins_a, mins_b, mins_c):
     turnos_data = []
     
@@ -181,16 +169,28 @@ def carregar_dados():
                 hora_corte_madrugada = pd.to_datetime("05:00", format='%H:%M').time()
 
                 if dia_semana == 5: 
-                    corte_a = pd.to_datetime(CORTE_TURNO_A_SABADO, format='%H:%M').time()
-                    corte_b = pd.to_datetime(CORTE_TURNO_B_SABADO, format='%H:%M').time()
+                    # --- SÁBADO ---
+                    corte_a_sabado = pd.to_datetime("11:00", format='%H:%M').time()
+                    corte_b_sabado = pd.to_datetime("15:00", format='%H:%M').time()
+                    
+                    if hora_saida <= hora_corte_madrugada: return "Turno C"
+                    elif hora_saida <= corte_a_sabado: return "Turno A"
+                    elif hora_saida <= corte_b_sabado: return "Turno B"
+                    else: return "Turno C" 
+                    
                 else: 
-                    corte_a = pd.to_datetime(CORTE_TURNO_A_SEMANA, format='%H:%M').time()
-                    corte_b = pd.to_datetime(CORTE_TURNO_B_SEMANA, format='%H:%M').time()
+                    # --- SEGUNDA A SEXTA (Intercalado) ---
+                    corte_a_manha = pd.to_datetime("10:30", format='%H:%M').time()
+                    corte_b_tarde = pd.to_datetime("14:00", format='%H:%M').time()
+                    corte_a_tarde = pd.to_datetime("17:18", format='%H:%M').time()
+                    corte_b_noite = pd.to_datetime("20:48", format='%H:%M').time()
 
-                if hora_saida <= hora_corte_madrugada: return "Turno C"
-                elif hora_saida <= corte_a: return "Turno A"
-                elif hora_saida <= corte_b: return "Turno B"
-                else: return "Turno C"
+                    if hora_saida <= hora_corte_madrugada: return "Turno C"
+                    elif hora_saida <= corte_a_manha: return "Turno A"
+                    elif hora_saida <= corte_b_tarde: return "Turno B"
+                    elif hora_saida <= corte_a_tarde: return "Turno A"
+                    elif hora_saida <= corte_b_noite: return "Turno B"
+                    else: return "Turno C"
 
             df_processado['Turno'] = df_processado.apply(classificar_turno, axis=1)
 
