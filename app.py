@@ -76,6 +76,22 @@ def exibir_card_turno(titulo, icone, volume, tai, ocupacao, conformidade, cor_te
     """
     st.markdown(html, unsafe_allow_html=True)
 
+def exibir_metricas_kpi(df_filtrado, min_disp_total):
+    """Calcula e exibe os 5 indicadores principais (Volume, TAI, Meta, Conformidade, Ocupação)
+    com base no dataframe já filtrado (ex: por operação/aba selecionada)."""
+    vol = len(df_filtrado)
+    tai_medio = df_filtrado['TAI (Minutos)'].mean() if vol > 0 else 0
+    dentro_meta = int(df_filtrado['Dentro_da_Meta'].sum()) if vol > 0 else 0
+    conf = (dentro_meta / vol) * 100 if vol > 0 else 0
+    ocup = (df_filtrado['TAI (Minutos)'].sum() / min_disp_total) * 100 if min_disp_total > 0 else 0
+
+    c1, c2, c3, c4, c5 = st.columns(5)
+    c1.metric("Volume", vol)
+    c2.metric("TAI Médio", formatar_tempo(tai_medio).replace('<b>', '').replace('</b>', ''))
+    c3.metric("Dentro da Meta (Qtd)", dentro_meta)
+    c4.metric("Conformidade (%)", f"{conf:.1f}%")
+    c5.metric("Ocupação (%)", f"{ocup:.1f}%")
+
 def calcular_turno_destaque(df_filtrado, mins_a, mins_b, mins_c):
     turnos_data = []
     
@@ -384,22 +400,7 @@ if not df_completo.empty:
             min_disp_dia_a, min_disp_dia_b, min_disp_dia_c = MINUTOS_TURNO_SEMANA_A, MINUTOS_TURNO_SEMANA_B, MINUTOS_TURNO_SEMANA_C
             
         min_disp_total_dia = min_disp_dia_a + min_disp_dia_b + min_disp_dia_c
-        vol_dia = len(df_dia)
-        tai_medio_dia = df_dia['TAI (Minutos)'].mean() if vol_dia > 0 else 0
-        dentro_meta_dia = int(df_dia['Dentro_da_Meta'].sum())
-        conf_dia = (dentro_meta_dia / vol_dia) * 100 if vol_dia > 0 else 0
-        ocup_dia = (df_dia['TAI (Minutos)'].sum() / min_disp_total_dia) * 100 if min_disp_total_dia > 0 else 0
 
-        # EXIBIÇÃO EM 5 COLUNAS DIÁRIAS
-        c1, c2, c3, c4, c5 = st.columns(5)
-        c1.metric("Volume do Dia", vol_dia)
-        c2.metric("TAI Médio", formatar_tempo(tai_medio_dia).replace('<b>', '').replace('</b>', ''))
-        c3.metric("Dentro da Meta (Qtd)", dentro_meta_dia)
-        c4.metric("Conformidade (%)", f"{conf_dia:.1f}%")
-        c5.metric("Ocupação do Dia (%)", f"{ocup_dia:.1f}%")
-        
-        st.write("") 
-        
         def gerar_grafico_gargalos(df_filtrado, tipo_aba="Geral"):
             if df_filtrado.empty:
                 st.info("Nenhuma carreta finalizada para este filtro.")
@@ -430,15 +431,24 @@ if not df_completo.empty:
 
         st.markdown("**🚛 Tempo de Atendimento por Placas (Gargalos)**")
         aba_geral, aba_fabrica, aba_pa = st.tabs(["🌎 Visão Geral (Todas)", "🏭 Puxada Fábrica", "📦 Ponto de Apoio"])
+
         with aba_geral:
+            exibir_metricas_kpi(df_dia, min_disp_total_dia)
+            st.write("")
             fig_geral = gerar_grafico_gargalos(df_dia, "Geral")
             if fig_geral: st.plotly_chart(fig_geral, use_container_width=True)
+
         with aba_fabrica:
             df_fabrica = df_dia[df_dia[col_operacao] == 'PUXADA FÁBRICA']
+            exibir_metricas_kpi(df_fabrica, min_disp_total_dia)
+            st.write("")
             fig_fabrica = gerar_grafico_gargalos(df_fabrica, "Puxada Fábrica")
             if fig_fabrica: st.plotly_chart(fig_fabrica, use_container_width=True)
+
         with aba_pa:
             df_pa = df_dia[df_dia[col_operacao] == 'PONTO DE APOIO']
+            exibir_metricas_kpi(df_pa, min_disp_total_dia)
+            st.write("")
             fig_pa = gerar_grafico_gargalos(df_pa, "Ponto de Apoio")
             if fig_pa: st.plotly_chart(fig_pa, use_container_width=True)
 
