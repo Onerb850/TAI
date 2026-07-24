@@ -77,7 +77,7 @@ def exibir_card_turno(titulo, icone, volume, tai, ocupacao, conformidade, cor_te
                 <span style="color: #444; font-weight: 600; flex: 1.4;">{item['icone']} {item['label']}</span>
                 <span style="color: #888; flex: 1;">Vol: <b style="color:#111;">{item['vol']}</b></span>
                 <span style="color: #888; flex: 1;">TAI: <b style="color:#111;">{item['tai']}</b></span>
-                <span style="color: #888; flex: 1;">Conf: <b style="color:#111;">{formatar_percentual(item['conf'])}</b></span>
+                <span style="color: #888; flex: 1;">Conf: <b style="color:#111;">{formatar_conformidade(item['conf'])}</b></span>
             </div>
             """
 
@@ -107,7 +107,7 @@ def exibir_card_turno(titulo, icone, volume, tai, ocupacao, conformidade, cor_te
             </div>
             <div style="flex: 1.2; padding-right: 5px;">
                 <p style="font-size: 12px; margin-bottom: 0px; color: #666; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Conform.</p>
-                <p style="font-size: 22px; font-weight: bold; margin-top: 2px; color: #111;">{formatar_percentual(conformidade)}</p>
+                <p style="font-size: 22px; font-weight: bold; margin-top: 2px; color: #111;">{formatar_conformidade(conformidade)}</p>
             </div>
             <div style="flex: 1;">
                 <p style="font-size: 12px; margin-bottom: 0px; color: #666; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Ocupação</p>
@@ -133,7 +133,7 @@ def exibir_metricas_kpi(df_filtrado, min_disp_total):
     c1.metric("Volume", vol)
     c2.metric("TAI Médio", formatar_tempo(tai_medio))
     c3.metric("Dentro da Meta (Qtd)", dentro_meta)
-    c4.metric("Conformidade (%)", formatar_percentual(conf))
+    c4.metric("Conformidade (%)", formatar_conformidade(conf))
     c5.metric("Ocupação (%)", formatar_percentual(ocup))
 
 def padronizar_operacao(op):
@@ -148,6 +148,13 @@ def padronizar_operacao(op):
 def formatar_percentual(valor):
     if pd.isna(valor):
         return "0%"
+    if round(valor, 1) == 100.0:
+        return "100%"
+    return f"{valor:.1f}%"
+
+def formatar_conformidade(valor):
+    if pd.isna(valor) or valor == 0:
+        return "-"
     if round(valor, 1) == 100.0:
         return "100%"
     return f"{valor:.1f}%"
@@ -322,7 +329,7 @@ if not df_completo.empty:
         cm1.metric("Volume Total", vol_mes)
         cm2.metric("TAI Médio", formatar_tempo(tai_medio_mes))
         cm3.metric("Dentro da Meta (Qtd)", dentro_meta_mes)
-        cm4.metric("Conformidade (%)", formatar_percentual(conf_mes))
+        cm4.metric("Conformidade (%)", formatar_conformidade(conf_mes))
         cm5.metric("Ocupação Geral (%)", formatar_percentual(ocup_mes))
         
         st.write("") 
