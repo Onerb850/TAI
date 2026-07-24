@@ -77,7 +77,7 @@ def exibir_card_turno(titulo, icone, volume, tai, ocupacao, conformidade, cor_te
                 <span style="color: #444; font-weight: 600; flex: 1.4;">{item['icone']} {item['label']}</span>
                 <span style="color: #888; flex: 1;">Vol: <b style="color:#111;">{item['vol']}</b></span>
                 <span style="color: #888; flex: 1;">TAI: <b style="color:#111;">{item['tai']}</b></span>
-                <span style="color: #888; flex: 1;">Conf: <b style="color:#111;">{item['conf']:.1f}%</b></span>
+                <span style="color: #888; flex: 1;">Conf: <b style="color:#111;">{formatar_percentual(item['conf'])}</b></span>
             </div>
             """
 
@@ -107,11 +107,11 @@ def exibir_card_turno(titulo, icone, volume, tai, ocupacao, conformidade, cor_te
             </div>
             <div style="flex: 1.2; padding-right: 5px;">
                 <p style="font-size: 12px; margin-bottom: 0px; color: #666; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Conform.</p>
-                <p style="font-size: 22px; font-weight: bold; margin-top: 2px; color: #111;">{conformidade:.1f}%</p>
+                <p style="font-size: 22px; font-weight: bold; margin-top: 2px; color: #111;">{formatar_percentual(conformidade)}</p>
             </div>
             <div style="flex: 1;">
                 <p style="font-size: 12px; margin-bottom: 0px; color: #666; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Ocupação</p>
-                <p style="font-size: 22px; font-weight: bold; margin-top: 2px; color: {cor_tema};">{ocupacao:.1f}%</p>
+                <p style="font-size: 22px; font-weight: bold; margin-top: 2px; color: {cor_tema};">{formatar_percentual(ocupacao)}</p>
             </div>
         </div>
         {linhas_breakdown}
@@ -131,38 +131,10 @@ def exibir_metricas_kpi(df_filtrado, min_disp_total):
 
     c1, c2, c3, c4, c5 = st.columns(5)
     c1.metric("Volume", vol)
-    c2.metric("TAI Médio", formatar_tempo(tai_medio).replace('<b>', '').replace('</b>', ''))
+    c2.metric("TAI Médio", formatar_tempo(tai_medio))
     c3.metric("Dentro da Meta (Qtd)", dentro_meta)
-    c4.metric("Conformidade (%)", f"{conf:.1f}%")
-    c5.metric("Ocupação (%)", f"{ocup:.1f}%")
-
-def calcular_turno_destaque(df_filtrado, mins_a, mins_b, mins_c):
-    turnos_data = []
-    
-    for t, m_disp in [('Turno A', mins_a), ('Turno B', mins_b), ('Turno C', mins_c)]:
-        df_t = df_filtrado[df_filtrado['Turno'] == t]
-        if len(df_t) > 0 and m_disp > 0:
-            conf = (df_t['Dentro_da_Meta'].sum() / len(df_t)) * 100
-            tai = df_t['TAI (Minutos)'].mean()
-            ocup = (df_t['TAI (Minutos)'].sum() / m_disp) * 100
-            turnos_data.append({'Turno': t, 'Vol': len(df_t), 'Conf': conf, 'TAI': tai, 'Ocup': ocup})
-
-    if not turnos_data: return "Sem dados", "Nenhuma operação realizada."
-    if len(turnos_data) == 1: return turnos_data[0]['Turno'], "Foi a única equipa com carretas finalizadas neste período."
-
-    turnos_data.sort(key=lambda x: (round(x['Conf'], 1), -round(x['TAI'], 1), round(x['Ocup'], 1)), reverse=True)
-    
-    vencedor = turnos_data[0]
-    segundo = turnos_data[1]
-
-    if round(vencedor['Conf'], 1) > round(segundo['Conf'], 1):
-        motivo = f"Teve o melhor desempenho no cumprimento dos prazos."
-    elif round(vencedor['TAI'], 1) < round(segundo['TAI'], 1):
-        motivo = f"Empate em conformidade, mas foi o mais ágil do período (TAI médio de {vencedor['TAI']:.0f} min)."
-    else:
-        motivo = f"Empate técnico em tempo e metas, mas aguentou maior carga de trabalho ({vencedor['Ocup']:.1f}% de ocupação)."
-
-    return vencedor['Turno'], motivo
+    c4.metric("Conformidade (%)", formatar_percentual(conf))
+    c5.metric("Ocupação (%)", formatar_percentual(ocup))
 
 def padronizar_operacao(op):
     if pd.isna(op): return "NÃO IDENTIFICADA"
@@ -172,6 +144,13 @@ def padronizar_operacao(op):
     if "PONTO DE APOIO" in op_str or op_str == "PA":
         return "PONTO DE APOIO"
     return op_str
+
+def formatar_percentual(valor):
+    if pd.isna(valor):
+        return "0%"
+    if round(valor, 1) == 100.0:
+        return "100%"
+    return f"{valor:.1f}%"
 
 def formatar_tempo(minutos_totais):
     if pd.isna(minutos_totais): return "0min"
@@ -216,9 +195,6 @@ def carregar_dados():
         
         if not df_processado.empty:
             df_processado = df_processado.sort_values('Entrada')
-            df_processado['Intervalo Chegada (Minutos)'] = df_processado['Entrada'].diff().dt.total_seconds() / 60
-            df_processado['Intervalo Chegada (Minutos)'] = df_processado['Intervalo Chegada (Minutos)'].fillna(0)
-            df_processado.loc[df_processado['Intervalo Chegada (Minutos)'] < 0, 'Intervalo Chegada (Minutos)'] += 1440
             df_processado['TAI_Formatado'] = df_processado['TAI (Minutos)'].apply(formatar_tempo)
             
             def classificar_turno(row):
@@ -344,10 +320,10 @@ if not df_completo.empty:
         # 3. EXIBIÇÃO EM 5 COLUNAS (NOVO LAYOUT GERAL)
         cm1, cm2, cm3, cm4, cm5 = st.columns(5)
         cm1.metric("Volume Total", vol_mes)
-        cm2.metric("TAI Médio", formatar_tempo(tai_medio_mes).replace('<b>', '').replace('</b>', ''))
+        cm2.metric("TAI Médio", formatar_tempo(tai_medio_mes))
         cm3.metric("Dentro da Meta (Qtd)", dentro_meta_mes)
-        cm4.metric("Conformidade (%)", f"{conf_mes:.1f}%")
-        cm5.metric("Ocupação Geral (%)", f"{ocup_mes:.1f}%")
+        cm4.metric("Conformidade (%)", formatar_percentual(conf_mes))
+        cm5.metric("Ocupação Geral (%)", formatar_percentual(ocup_mes))
         
         st.write("") 
         
@@ -401,17 +377,6 @@ if not df_completo.empty:
             exibir_card_turno("Turno C", "🦉", vol_c_mes, formatar_tempo(tai_c_mes), ocup_c_mes, conf_c_mes, CORES_TURNOS["Turno C"], breakdown_c_mes)
             
         st.write("")
-        vencedor_mes, motivo_mes = calcular_turno_destaque(df_mes, min_disp_mes_a, min_disp_mes_b, min_disp_mes_c)
-        if vencedor_mes and vencedor_mes != "Sem dados":
-            st.success(f"🥇 **Turno de Destaque no Mês:** {vencedor_mes} — *{motivo_mes}*")
-
-        df_comp_mes = pd.DataFrame({"Turno": ["Turno A", "Turno B", "Turno C"], "Ocupação (%)": [ocup_a_mes, ocup_b_mes, ocup_c_mes]})
-        fig_comp_mes = px.bar(df_comp_mes, x="Ocupação (%)", y="Turno", orientation='h', text=df_comp_mes["Ocupação (%)"].apply(lambda x: f"<b>{x:.1f}%</b>"), color="Turno", color_discrete_map=CORES_TURNOS)
-        fig_comp_mes.update_traces(textposition='auto', textfont_size=16, textfont_color='black')
-        fig_comp_mes.update_layout(height=200, showlegend=False, xaxis_title="Taxa de Ocupação Média Acumulada (%)", yaxis_title="", margin=dict(t=10, b=10, l=10, r=10))
-        st.plotly_chart(fig_comp_mes, use_container_width=True)
-
-        st.write("")
 
         # ==========================================
         # 📋 TABELA: HISTÓRICO MENSAL
@@ -420,7 +385,7 @@ if not df_completo.empty:
         df_historico_mes = df_mes.sort_values(by=['Data_Operacao', 'Saída'], ascending=[False, False]).copy()
         
         df_historico_mes['Data_Exibicao'] = pd.to_datetime(df_historico_mes['Data_Operacao']).dt.strftime('%d/%m/%Y')
-        df_historico_mes['TAI_Formatado_Limpo'] = df_historico_mes['TAI_Formatado'].str.replace('<b>', '').str.replace('</b>', '')
+        df_historico_mes['TAI_Formatado_Limpo'] = df_historico_mes['TAI_Formatado']
         
         if col_motorista and col_motorista in df_historico_mes.columns:
             df_exib_mes = df_historico_mes[['Data_Exibicao', col_placa, col_motorista, col_operacao, 'Turno', 'Entrada_Texto', 'Saída_Texto', 'TAI_Formatado_Limpo']]
@@ -570,22 +535,11 @@ if not df_completo.empty:
             exibir_card_turno("Turno C", "🦉", vol_c, formatar_tempo(tai_c), ocup_c, conf_c, CORES_TURNOS["Turno C"], breakdown_c)
             
         st.write("")
-        vencedor_dia, motivo_dia = calcular_turno_destaque(df_dia, min_disp_dia_a, min_disp_dia_b, min_disp_dia_c)
-        if vencedor_dia and vencedor_dia != "Sem dados":
-            st.success(f"🥇 **Turno de Destaque de Hoje:** {vencedor_dia} — *{motivo_dia}*")
-
-        df_comp = pd.DataFrame({"Turno": ["Turno A", "Turno B", "Turno C"], "Ocupação (%)": [ocup_a, ocup_b, ocup_c]})
-        fig_comp = px.bar(df_comp, x="Ocupação (%)", y="Turno", orientation='h', text=df_comp["Ocupação (%)"].apply(lambda x: f"<b>{x:.1f}%</b>"), color="Turno", color_discrete_map=CORES_TURNOS)
-        fig_comp.update_traces(textposition='auto', textfont_size=16, textfont_color='black')
-        fig_comp.update_layout(height=200, showlegend=False, xaxis_title="Taxa de Ocupação da Equipe (%)", yaxis_title="", margin=dict(t=10, b=10, l=10, r=10))
-        st.plotly_chart(fig_comp, use_container_width=True)
-
-        st.write("")
         
         # --- TABELA HISTÓRICO DO DIA ---
         st.markdown("**📋 Histórico de Atendimentos do Dia**")
         df_historico = df_dia.sort_values(by='Saída', ascending=False).copy()
-        df_historico['TAI_Formatado_Limpo'] = df_historico['TAI_Formatado'].str.replace('<b>', '').str.replace('</b>', '')
+        df_historico['TAI_Formatado_Limpo'] = df_historico['TAI_Formatado']
         
         if col_motorista and col_motorista in df_historico.columns:
             df_exibicao = df_historico[[col_placa, col_motorista, col_operacao, 'Turno', 'Entrada_Texto', 'Saída_Texto', 'TAI_Formatado_Limpo']]
