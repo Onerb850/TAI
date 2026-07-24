@@ -38,7 +38,49 @@ def truncar_texto(texto, limite):
     texto = str(texto).strip()
     return texto[:limite] + "..." if len(texto) > limite else texto
 
-def exibir_card_turno(titulo, icone, volume, tai, ocupacao, conformidade, cor_tema):
+def calcular_breakdown_operacao(df_turno, coluna_operacao):
+    """Agrupa o dataframe de um turno por operação (Ponto de Apoio, Puxada Fábrica, etc.)
+    e calcula Volume, TAI médio e Conformidade de cada uma."""
+    if df_turno.empty:
+        return []
+    icones_map = {"PUXADA FÁBRICA": "🏭", "PONTO DE APOIO": "📦"}
+    breakdown = []
+    for op, grupo in df_turno.groupby(coluna_operacao):
+        vol = len(grupo)
+        if vol == 0:
+            continue
+        tai = grupo['TAI (Minutos)'].mean()
+        conf = (grupo['Dentro_da_Meta'].sum() / vol) * 100
+        breakdown.append({
+            'label': truncar_texto(op, 18),
+            'icone': icones_map.get(op, '🔸'),
+            'vol': vol,
+            'tai': formatar_tempo(tai),
+            'conf': conf
+        })
+    breakdown.sort(key=lambda x: x['vol'], reverse=True)
+    return breakdown
+
+def exibir_card_turno(titulo, icone, volume, tai, ocupacao, conformidade, cor_tema, breakdown=None):
+    linhas_breakdown = ""
+    if breakdown:
+        for item in breakdown:
+            linhas_breakdown += f"""
+            <div style="
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                padding: 7px 0;
+                border-top: 1px solid #f0f2f6;
+                font-size: 13px;
+            ">
+                <span style="color: #444; font-weight: 600; flex: 1.4;">{item['icone']} {item['label']}</span>
+                <span style="color: #888; flex: 1;">Vol: <b style="color:#111;">{item['vol']}</b></span>
+                <span style="color: #888; flex: 1;">TAI: <b style="color:#111;">{item['tai']}</b></span>
+                <span style="color: #888; flex: 1;">Conf: <b style="color:#111;">{item['conf']:.1f}%</b></span>
+            </div>
+            """
+
     html = f"""
     <div style="
         background-color: white;
@@ -72,6 +114,7 @@ def exibir_card_turno(titulo, icone, volume, tai, ocupacao, conformidade, cor_te
                 <p style="font-size: 22px; font-weight: bold; margin-top: 2px; color: {cor_tema};">{ocupacao:.1f}%</p>
             </div>
         </div>
+        {linhas_breakdown}
     </div>
     """
     st.markdown(html, unsafe_allow_html=True)
@@ -334,24 +377,27 @@ if not df_completo.empty:
         tai_a_mes = df_turno_a_mes['TAI (Minutos)'].mean() if vol_a_mes > 0 else 0
         ocup_a_mes = (df_turno_a_mes['TAI (Minutos)'].sum() / min_disp_mes_a) * 100 if min_disp_mes_a > 0 else 0
         conf_a_mes = (df_turno_a_mes['Dentro_da_Meta'].sum() / vol_a_mes) * 100 if vol_a_mes > 0 else 0
+        breakdown_a_mes = calcular_breakdown_operacao(df_turno_a_mes, col_operacao)
         with colA_mes:
-            exibir_card_turno("Turno A", "☀️", vol_a_mes, formatar_tempo(tai_a_mes), ocup_a_mes, conf_a_mes, CORES_TURNOS["Turno A"])
+            exibir_card_turno("Turno A", "☀️", vol_a_mes, formatar_tempo(tai_a_mes), ocup_a_mes, conf_a_mes, CORES_TURNOS["Turno A"], breakdown_a_mes)
             
         df_turno_b_mes = df_mes[df_mes['Turno'] == 'Turno B']
         vol_b_mes = len(df_turno_b_mes)
         tai_b_mes = df_turno_b_mes['TAI (Minutos)'].mean() if vol_b_mes > 0 else 0
         ocup_b_mes = (df_turno_b_mes['TAI (Minutos)'].sum() / min_disp_mes_b) * 100 if min_disp_mes_b > 0 else 0
         conf_b_mes = (df_turno_b_mes['Dentro_da_Meta'].sum() / vol_b_mes) * 100 if vol_b_mes > 0 else 0
+        breakdown_b_mes = calcular_breakdown_operacao(df_turno_b_mes, col_operacao)
         with colB_mes:
-            exibir_card_turno("Turno B", "🌙", vol_b_mes, formatar_tempo(tai_b_mes), ocup_b_mes, conf_b_mes, CORES_TURNOS["Turno B"])
+            exibir_card_turno("Turno B", "🌙", vol_b_mes, formatar_tempo(tai_b_mes), ocup_b_mes, conf_b_mes, CORES_TURNOS["Turno B"], breakdown_b_mes)
 
         df_turno_c_mes = df_mes[df_mes['Turno'] == 'Turno C']
         vol_c_mes = len(df_turno_c_mes)
         tai_c_mes = df_turno_c_mes['TAI (Minutos)'].mean() if vol_c_mes > 0 else 0
         ocup_c_mes = (df_turno_c_mes['TAI (Minutos)'].sum() / min_disp_mes_c) * 100 if min_disp_mes_c > 0 else 0
         conf_c_mes = (df_turno_c_mes['Dentro_da_Meta'].sum() / vol_c_mes) * 100 if vol_c_mes > 0 else 0
+        breakdown_c_mes = calcular_breakdown_operacao(df_turno_c_mes, col_operacao)
         with colC_mes:
-            exibir_card_turno("Turno C", "🦉", vol_c_mes, formatar_tempo(tai_c_mes), ocup_c_mes, conf_c_mes, CORES_TURNOS["Turno C"])
+            exibir_card_turno("Turno C", "🦉", vol_c_mes, formatar_tempo(tai_c_mes), ocup_c_mes, conf_c_mes, CORES_TURNOS["Turno C"], breakdown_c_mes)
             
         st.write("")
         vencedor_mes, motivo_mes = calcular_turno_destaque(df_mes, min_disp_mes_a, min_disp_mes_b, min_disp_mes_c)
@@ -500,24 +546,27 @@ if not df_completo.empty:
         tai_a = df_turno_a['TAI (Minutos)'].mean() if vol_a > 0 else 0
         ocup_a = (df_turno_a['TAI (Minutos)'].sum() / min_disp_dia_a) * 100 if min_disp_dia_a > 0 else 0
         conf_a = (df_turno_a['Dentro_da_Meta'].sum() / vol_a) * 100 if vol_a > 0 else 0
+        breakdown_a = calcular_breakdown_operacao(df_turno_a, col_operacao)
         with colA:
-            exibir_card_turno("Turno A", "☀️", vol_a, formatar_tempo(tai_a), ocup_a, conf_a, CORES_TURNOS["Turno A"])
+            exibir_card_turno("Turno A", "☀️", vol_a, formatar_tempo(tai_a), ocup_a, conf_a, CORES_TURNOS["Turno A"], breakdown_a)
             
         df_turno_b = df_dia[df_dia['Turno'] == 'Turno B']
         vol_b = len(df_turno_b)
         tai_b = df_turno_b['TAI (Minutos)'].mean() if vol_b > 0 else 0
         ocup_b = (df_turno_b['TAI (Minutos)'].sum() / min_disp_dia_b) * 100 if min_disp_dia_b > 0 else 0
         conf_b = (df_turno_b['Dentro_da_Meta'].sum() / vol_b) * 100 if vol_b > 0 else 0
+        breakdown_b = calcular_breakdown_operacao(df_turno_b, col_operacao)
         with colB:
-            exibir_card_turno("Turno B", "🌙", vol_b, formatar_tempo(tai_b), ocup_b, conf_b, CORES_TURNOS["Turno B"])
+            exibir_card_turno("Turno B", "🌙", vol_b, formatar_tempo(tai_b), ocup_b, conf_b, CORES_TURNOS["Turno B"], breakdown_b)
 
         df_turno_c = df_dia[df_dia['Turno'] == 'Turno C']
         vol_c = len(df_turno_c)
         tai_c = df_turno_c['TAI (Minutos)'].mean() if vol_c > 0 else 0
         ocup_c = (df_turno_c['TAI (Minutos)'].sum() / min_disp_dia_c) * 100 if min_disp_dia_c > 0 else 0
         conf_c = (df_turno_c['Dentro_da_Meta'].sum() / vol_c) * 100 if vol_c > 0 else 0
+        breakdown_c = calcular_breakdown_operacao(df_turno_c, col_operacao)
         with colC:
-            exibir_card_turno("Turno C", "🦉", vol_c, formatar_tempo(tai_c), ocup_c, conf_c, CORES_TURNOS["Turno C"])
+            exibir_card_turno("Turno C", "🦉", vol_c, formatar_tempo(tai_c), ocup_c, conf_c, CORES_TURNOS["Turno C"], breakdown_c)
             
         st.write("")
         vencedor_dia, motivo_dia = calcular_turno_destaque(df_dia, min_disp_dia_a, min_disp_dia_b, min_disp_dia_c)
