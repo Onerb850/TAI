@@ -117,6 +117,7 @@ def exibir_card_turno(titulo, icone, volume, tai, ocupacao, conformidade, cor_te
         {linhas_breakdown}
     </div>
     """
+    html = "\n".join(linha.strip() for linha in html.strip().split("\n"))
     st.markdown(html, unsafe_allow_html=True)
 
 def exibir_metricas_kpi(df_filtrado, min_disp_total):
