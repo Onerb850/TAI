@@ -291,6 +291,7 @@ else:
 
 # --- INÍCIO DO PAINEL ---
 st.title("📊 Monitoramento de Pátio e Descarga")
+st.caption("_\"Tudo tem o seu tempo determinado, e há tempo para todo propósito debaixo do céu.\" — Eclesiastes 3:1_")
 
 with st.expander("🛠️ Depuração: Clique aqui para ver os dados brutos da Planilha"):
     if not df_bruto.empty:
